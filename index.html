@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>找出雷军的广告小字</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    user-select: none;
+  }
+  canvas {
+    border-radius: 20px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    cursor: pointer;
+  }
+  #message, #timer, #loading {
+    position: fixed;
+    width: 100%;
+    text-align: center;
+    font-weight: bold;
+    text-shadow: 0 0 8px #fff;
+  }
+  #message { top: 20px; color: #ff6700; font-size: 20px; }
+  #timer { top: 50px; color: #ffffff; font-size: 18px; }
+  #loading { top: 50%; transform: translateY(-50%); color: #fff; font-size: 20px; }
+  #dialog {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: white; border-radius: 12px; padding: 20px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.4); display: none; text-align: center; z-index: 10;
+  }
+  #dialog button {
+    margin: 10px; padding: 8px 16px; border: none; border-radius: 8px;
+    font-size: 16px; cursor: pointer;
+  }
+  #dialog button:first-child { background-color: #ff6700; color: #fff; }
+  #dialog button:last-child { background-color: #ccc; }
+  #adSlot {
+    position: fixed; bottom: 20px; right: 20px;
+    width: 120px; height: 60px; background: rgba(255,255,255,0.9);
+    border-radius: 8px; text-align: center; line-height: 60px;
+    font-weight: bold; color: #ff6700; cursor: pointer; display: none;
+  }
+  #adSlot img { width: 120px; height: 60px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="380" height="600"></canvas>
+<div id="message"></div>
+<div id="timer"></div>
+<div id="loading">加载中...</div>
+<div id="dialog">
+  <p id="dialogText">时间到！是否继续？</p>
+  <button id="btnContinue">继续</button>
+  <button id="btnQuit">结束</button>
+</div>
+<div id="adSlot">广告位</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const msg = document.getElementById('message');
+const timerDisplay = document.getElementById('timer');
+const loading = document.getElementById('loading');
+const dialog = document.getElementById('dialog');
+const btnContinue = document.getElementById('btnContinue');
+const btnQuit = document.getElementById('btnQuit');
+const dialogText = document.getElementById('dialogText');
+const adSlot = document.getElementById('adSlot');
+
+const levels = [
+  { big: "我儿子是雷军", small: "的粉丝", bg: "https://picsum.photos/380/600?blur=2", diff: 1 },
+  { big: "逆光之王", small: "是我家灯泡", bg: "https://picsum.photos/380/600?grayscale", diff: 2 },
+  { big: "全球最强AI", small: "模型爱发呆", bg: "https://picsum.photos/380/600?blur=5", diff: 3 },
+  { big: "我买了小米SU7", small: "的海报", bg: "https://picsum.photos/380/600?random=4", diff: 4 }
+];
+
+let currentLevel = 0;
+let targetArea = {};
+let bgImage = new Image();
+let countdown = 10;
+let timer;
+let found = false;
+let score = 0;
+let gameActive = true; // 游戏进行状态
+
+function showMessage(text){
+  msg.textContent = text;
+  msg.style.opacity = 1;
+  setTimeout(()=>msg.style.opacity=0,1000);
+}
+
+function updateTimer(){ timerDisplay.textContent = `⏱️ ${countdown} 秒`; }
+
+function drawLevel(){
+  found=false;
+  dialog.style.display="none";
+  clearInterval(timer);
+  loading.style.display="block";
+  gameActive=true;
+  adSlot.style.display="block";
+
+  const level=levels[currentLevel];
+  bgImage.src=level.bg;
+  bgImage.onload=()=>{
+    loading.style.display="none";
+    ctx.filter='blur(1px) brightness(0.9)';
+    ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
+    ctx.filter='none';
+
+    // 大字
+    ctx.fillStyle="#000";
+    ctx.font="bold 30px 'PingFang SC'";
+    ctx.textAlign="center";
+    const bigY=canvas.height/2-100;
+    ctx.fillText(level.big,canvas.width/2,bigY);
+
+    // 小字
+    const diff=level.diff;
+    const size=16-diff;
+    const rotate=(Math.random()*10-5)*Math.PI/180;
+    const color=diff>=3?`rgba(255,255,255,${0.3+Math.random()*0.2})`:`rgba(50,50,50,${0.5+Math.random()*0.2})`;
+    const x=canvas.width/2+40+Math.random()*60;
+    const y=bigY+50+Math.random()*40;
+
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(rotate);
+    ctx.globalAlpha=Math.max(0.3,0.6-diff*0.05);
+    ctx.fillStyle=color;
+    ctx.shadowColor="rgba(0,0,0,0.3)";
+    ctx.shadowBlur=2;
+    ctx.shadowOffsetX=1;
+    ctx.shadowOffsetY=1;
+    ctx.font=`${size}px 'PingFang SC'`;
+    ctx.fillText(level.small,0,0);
+    ctx.restore();
+
+    targetArea={x:x-30,y:y-20,w:100,h:40};
+
+    // 倒计时
+    countdown=10;
+    updateTimer();
+    timer=setInterval(()=>{
+      countdown--;
+      updateTimer();
+      if(countdown<=0){
+        clearInterval(timer);
+        if(!found){
+          showMessage("⌛ 时间到！");
+          highlightTarget(()=>{
+            dialogText.textContent="时间到！是否继续？";
+            dialog.style.display="block";
+          });
+        }
+      }
+    },1000);
+  };
+}
+
+canvas.addEventListener('click',(e)=>{
+  if(!gameActive || dialog.style.display==="block") return;
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left;
+  const y=e.clientY-rect.top;
+
+  if(x>targetArea.x && x<targetArea.x+targetArea.w && y>targetArea.y && y<targetArea.y+targetArea.h){
+    found=true;
+    score++;
+    clearInterval(timer);
+    showMessage("✅ 找到了！");
+    setTimeout(()=>nextLevel(),1000);
+  } else showMessage("❌ 没找到！");
+});
+
+function highlightTarget(callback){
+  let flashes=0;
+  const interval=setInterval(()=>{
+    flashes++;
+    ctx.strokeStyle=flashes%2===0?"rgba(255,0,0,0)":"rgba(255,0,0,0.8)";
+    ctx.lineWidth=3;
+    ctx.strokeRect(targetArea.x,targetArea.y,targetArea.w,targetArea.h);
+    if(flashes>=6){
+      clearInterval(interval);
+      callback();
+    }
+  },300);
+}
+
+btnContinue.addEventListener('click',()=>{ dialog.style.display="none"; nextLevel(); });
+btnQuit.addEventListener('click',()=>{ dialog.style.display="none"; endGame(); });
+
+function nextLevel(){
+  currentLevel++;
+  if(currentLevel<levels.length) drawLevel();
+  else endGame();
+}
+
+function endGame(){
+  clearInterval(timer);
+  timerDisplay.textContent="";
+  gameActive=false;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 白底
+  ctx.fillStyle="rgba(255,255,255,0.9)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.fillStyle="#000";
+  ctx.font="bold 22px 'PingFang SC'";
+  ctx.textAlign="center";
+
+  const total=levels.length;
+  const percent=Math.round((score/total)*100);
+  let title="👀 你的广告敏感度等级：";
+  let comment="";
+  if(percent===100) comment="广告法顾问";
+  else if(percent>=75) comment="细节观察大师";
+  else if(percent>=50) comment="合格的吃瓜群众";
+  else comment="你可能真信了广告 😅";
+
+  ctx.fillText("🎉 游戏结束",canvas.width/2,canvas.height/2-50);
+  ctx.fillText(`成功找到 ${score} / ${total}`,canvas.width/2,canvas.height/2-10);
+  ctx.fillText(`成功率：${percent}%`,canvas.width/2,canvas.height/2+20);
+  ctx.fillText(title+comment,canvas.width/2,canvas.height/2+60);
+
+  // 结算页广告
+  adSlot.style.display="block";
+  adSlot.innerHTML="<img src='https://picsum.photos/120/60?random=5' alt='广告'>";
+  adSlot.onclick=()=>window.open('https://你的广告链接.com','_blank');
+}
+
+drawLevel();
+</script>
+</body>
+</html>
